@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery Performance Crisis</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--ink:#1b2a3a;--mute:#5d6b7a;--line:#d8e0e8;--accent:#3d4fd1;--risk:#d9363e;--warn:#d98a1c;--ok:#1f8f7e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0}
+header{padding:28px 24px 8px;max-width:1200px;margin:auto}
+h1{font-size:30px}
+header p{color:var(--mute);margin:6px 0 0;max-width:72ch}
+main{max-width:1200px;margin:auto;padding:16px 24px 48px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.kpi b{display:block;font-size:26px;font-weight:600}
+.kpi span{color:var(--mute);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start;margin-bottom:16px}
+h2{font-size:19px;margin-bottom:6px}
+.sm{color:var(--mute);font-size:13px}
+.callout{background:#fdf6e9;border:1px solid #efd9a8;border-radius:8px;padding:12px 16px;margin-bottom:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.chips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+.chips button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.rb{display:grid;grid-template-columns:200px 1fr 48px;gap:8px;align-items:center;margin:9px 0;font-size:14px}
+.rb .t{height:12px;background:#e5eaf0;border-radius:6px;overflow:hidden}
+.rb .t i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--mute);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.pill{display:inline-block;padding:1px 10px;border-radius:999px;font-size:12px;font-weight:500}
+.p-up{background:#e1f4f0;color:#13665a}.p-hold{background:#fdf1dc;color:#8a5608}.p-down{background:#fbe4e5;color:#992027}
+.down{color:var(--risk)}.up{color:var(--ok)}
+.fix{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.fix input{margin-top:4px;width:18px;height:18px;accent-color:var(--accent)}
+.fix label{cursor:pointer}
+.fix b{font-weight:600}
+.gain{color:var(--ok);font-weight:600}
+svg{width:100%;height:auto;display:block}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.rb{grid-template-columns:130px 1fr 44px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Delivery Performance Crisis</h1>
+  <p>Synthetic demo. Breaks every late order into stages (picking, carrier pickup, transit, last mile, split shipments), finds the main cause of each delay, and ranks the operational fixes by how many late orders they would remove.</p>
+</header>
+<main>
+  <section class="kpis" aria-label="Summary">
+    <div class="kpi"><b id="k1"></b><span>Orders delivered on time</span></div>
+    <div class="kpi"><b id="k2"></b><span>Average delay of late orders</span></div>
+    <div class="kpi"><b id="k3"></b><span>Estimated complaints per 1,000 orders</span></div>
+    <div class="kpi"><b id="k4"></b><span id="k4l">On-time rate with selected fixes</span></div>
+  </section>
+
+  <div class="callout" id="call"></div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Why orders are late</h2>
+      <p class="sm" style="margin:0">Share of late orders by their main cause. Pick a warehouse to see its own causes.</p>
+      <div class="chips" id="chips" role="group" aria-label="Filter by warehouse"></div>
+      <div id="causes"></div>
+    </section>
+    <section class="card">
+      <h2>Recommended fixes</h2>
+      <p class="sm" style="margin:0">Tick fixes to see the projected on-time rate in the top right box. Estimates assume each fix removes part of the delays it targets.</p>
+      <div id="fixes"></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-bottom:16px">
+    <h2>Warehouse health</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Warehouse</th><th>Orders/day</th><th>Capacity/day</th><th>Utilization</th><th>Staff at peak (have / need)</th><th>Avg pick time</th><th>Split shipments</th><th>On time</th><th>Status</th></tr></thead>
+      <tbody id="wh"></tbody>
+    </table></div>
+  </section>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <section class="card">
+      <h2>Late rate by hour the order was placed</h2>
+      <p class="sm" style="margin:0 0 6px">Evening orders (red) pile up in picking queues overnight.</p>
+      <div id="hours"></div>
+    </section>
+    <section class="card">
+      <h2>Carrier performance</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Carrier</th><th>Share</th><th>On time</th><th>Avg pickup wait</th><th>Avg transit</th><th>National lane on time</th></tr></thead>
+        <tbody id="car"></tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+// ---- LOGIC START
+let sd = 5; const rnd = () => (sd = (sd * 1664525 + 1013904223) % 4294967296) / 4294967296;
+const DAY = 3300; // orders per day across the network
+const WH = [
+ {n:"Hyderabad", cap:1000, share:.30, need:58, staff:42, miss:.07},
+ {n:"Mumbai",    cap:900,  share:.26, need:52, staff:40, miss:.18},
+ {n:"Delhi",     cap:900,  share:.16, need:28, staff:29, miss:.10},
+ {n:"Bengaluru", cap:800,  share:.14, need:25, staff:25, miss:.05},
+ {n:"Kolkata",   cap:800,  share:.14, need:22, staff:22, miss:.14}
+];
+const CA = [
+ {n:"FastEx", share:.35, iv:6, sp:1.0}, {n:"QuickMove", share:.30, iv:8, sp:1.1},
+ {n:"SwiftCargo", share:.20, iv:12, sp:1.2, nat:1.4}, {n:"RoadRunner", share:.15, iv:6, sp:1.05}
+];
+const HW = [1,1,1,1,1,2,3,4,5,5,5,5,5,5,5,5,6,8,10,11,11,9,5,2];
+const ZB = [8, 28, 52], PROM = [36, 60, 96];
+const CAUSE = {pick:"Warehouse picking backlog", split:"Split shipments (stock in wrong warehouse)", tran:"Slow carrier transit", hand:"Carrier pickup wait", last:"Failed delivery attempts"};
+function pickFrom(arr, key) { let r = rnd(), a = 0; for (const x of arr) { a += x[key]; if (r <= a) return x; } return arr[arr.length - 1]; }
+const hsum = HW.reduce((a, b) => a + b, 0);
+function hour() { let r = rnd() * hsum, a = 0; for (let h = 0; h < 24; h++) { a += HW[h]; if (r <= a) return h; } return 23; }
+const orders = [];
+for (let i = 0; i < 6000; i++) {
+  const w = pickFrom(WH, "share"), c = pickFrom(CA, "share"), z = (r => r < .35 ? 0 : r < .75 ? 1 : 2)(rnd()), h = hour();
+  const g = (w.need - w.staff) / w.need, util = w.share * DAY / w.cap, peak = h >= 17 && h <= 22;
+  const pick = 3 + rnd() * 3 + (peak ? g * 105 * rnd() : g * 12 * rnd()) + (util > .9 ? 5 * rnd() : 0);
+  const hand = rnd() * c.iv;
+  const tran = ZB[z] * c.sp * (z === 2 && c.nat ? c.nat : 1) * (.85 + rnd() * .3);
+  const last = 3 + rnd() * 3 + (rnd() < .06 ? 24 : 0);
+  const split = rnd() < w.miss ? 14 + rnd() * 10 : 0;
+  const total = pick + hand + tran + last + split;
+  const ex = {pick: pick - 6, hand: hand - 2, tran: tran - ZB[z] * 1.1, last: last - 6, split: split};
+  const cause = Object.keys(ex).reduce((a, b) => ex[a] >= ex[b] ? a : b);
+  orders.push({w, c, z, h, pick, hand, tran, split, total, late: total > PROM[z], delay: total - PROM[z], cause});
+}
+// ---- LOGIC END
+
+const $ = id => document.getElementById(id);
+const pct = v => (v * 100).toFixed(1) + "%";
+const FIX = [
+ {t:"Rebalance staffing to the 5 pm to 11 pm peak and overflow orders to under-used warehouses", d:"Hyderabad and Mumbai are short of pickers in the evening. Move shifts and send overflow to Delhi, Bengaluru and Kolkata.", o:"Warehouse operations", e:"Low effort", c:{pick:.75}},
+ {t:"Stock fast sellers in the warehouse closest to demand", d:"Reduces orders that ship in two parcels from two warehouses. Use demand forecasts to set stock per warehouse.", o:"Inventory planning", e:"Medium effort", c:{split:.6}},
+ {t:"Move national volume off the slowest carrier and fix its pickup schedule", d:"SwiftCargo is slow on long lanes and collects only every 12 hours. Shift volume and ask for 6-hour pickups.", o:"Logistics procurement", e:"Medium effort", c:{tran:.5, hand:.5}},
+ {t:"Check addresses at checkout and auto-reschedule failed deliveries", d:"Address validation, delivery OTP, and an SMS to rebook the same day instead of the next day.", o:"Customer experience", e:"Low effort", c:{last:.5}}
+];
+let wsel = "All";
+const lateAll = orders.filter(o => o.late), N = orders.length;
+const cnt = (list, k) => list.filter(o => o.cause === k).length;
+const fixGain = f => Object.entries(f.c).reduce((t, [k, e]) => t + cnt(lateAll, k) * e, 0) / N * 100;
+
+function summary() {
+  const onTime = 1 - lateAll.length / N;
+  $("k1").textContent = pct(onTime);
+  $("k2").textContent = (lateAll.reduce((t, o) => t + o.delay, 0) / lateAll.length).toFixed(0) + " hrs";
+  $("k3").textContent = Math.round(lateAll.length * .4 / N * 1000);
+  const util = DAY / WH.reduce((t, w) => t + w.cap, 0);
+  const hot = WH.filter(w => w.share * DAY / w.cap > .9), cold = WH.filter(w => w.share * DAY / w.cap < .7);
+  $("call").innerHTML = `<b>Capacity is not the problem.</b> The network runs at ${Math.round(util * 100)}% of capacity overall, but ${hot.map(w => `${w.n} (${Math.round(w.share * DAY / w.cap * 100)}%)`).join(" and ")} are almost full while ${cold.map(w => w.n).join(", ")} have spare room. The delays come from where orders are sent and when the work is staffed.`;
+}
+function chips() {
+  $("chips").innerHTML = ["All", ...WH.map(w => w.n)].map(k => `<button aria-pressed="${k === wsel}" data-k="${k}">${k === "All" ? "All warehouses" : k}</button>`).join("");
+}
+function causes() {
+  const l = lateAll.filter(o => wsel === "All" || o.w.n === wsel);
+  const rows = Object.keys(CAUSE).map(k => [k, cnt(l, k) / l.length]).sort((a, b) => b[1] - a[1]);
+  const share = l.length / orders.filter(o => wsel === "All" || o.w.n === wsel).length;
+  $("causes").innerHTML = rows.map(([k, v]) => `<div class="rb"><span>${CAUSE[k]}</span><span class="t"><i style="width:${v * 100 / rows[0][1]}%"></i></span><b>${Math.round(v * 100)}%</b></div>`).join("") +
+    `<p class="sm">${l.length} late orders (${pct(share)} of ${wsel === "All" ? "all orders" : wsel + " orders"}).</p>`;
+}
+function fixes() {
+  $("fixes").innerHTML = FIX.map((f, i) => `<div class="fix"><input type="checkbox" id="f${i}" data-i="${i}"><label for="f${i}"><b>${f.t}</b><br><span class="sm">${f.d}</span><br><span class="sm">${f.o}, ${f.e}. </span><span class="gain">+${fixGain(f).toFixed(1)} points on-time</span></label></div>`).join("");
+  $("fixes").onchange = proj;
+}
+function proj() {
+  const on = [...document.querySelectorAll("#fixes input:checked")].map(x => FIX[+x.dataset.i]);
+  const base = (1 - lateAll.length / N) * 100, gain = on.reduce((t, f) => t + fixGain(f), 0);
+  $("k4").textContent = (base + gain).toFixed(1) + "%";
+  $("k4l").textContent = on.length ? `On-time rate with ${on.length} fix${on.length > 1 ? "es" : ""}` : "On-time rate with selected fixes";
+}
+function whTable() {
+  $("wh").innerHTML = WH.map(w => {
+    const o = orders.filter(x => x.w === w), u = w.share * DAY / w.cap, g = (w.need - w.staff) / w.need;
+    const on = o.filter(x => !x.late).length / o.length, st = u > .9 && g > .15 ? ["Critical", "p-down"] : u > .9 || g > .15 ? ["Watch", "p-hold"] : ["Healthy", "p-up"];
+    return `<tr><td>${w.n}</td><td>${Math.round(w.share * DAY)}</td><td>${w.cap}</td><td class="${u > .9 ? "down" : ""}">${Math.round(u * 100)}%</td>
+    <td class="${g > .15 ? "down" : ""}">${w.staff} / ${w.need}</td><td>${(o.reduce((t, x) => t + x.pick, 0) / o.length).toFixed(1)} h</td>
+    <td>${Math.round(o.filter(x => x.split > 0).length / o.length * 100)}%</td><td class="${on < .8 ? "down" : ""}">${pct(on)}</td><td><span class="pill ${st[1]}">${st[0]}</span></td></tr>`;
+  }).join("");
+}
+function hours() {
+  const r = Array.from({length: 24}, (_, h) => { const l = orders.filter(o => o.h === h); return l.filter(o => o.late).length / (l.length || 1); });
+  const mx = Math.max(...r), W = 480, H = 150, w = W / 24;
+  $("hours").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Late rate by hour of the day">` + r.map((v, h) => {
+    const bh = v / mx * (H - 34);
+    return `<rect x="${h * w + 2}" y="${H - 18 - bh}" width="${w - 4}" height="${bh}" rx="2" fill="${h >= 17 && h <= 22 ? "#d9363e" : "#b9c4d0"}"/>` + (h % 3 === 0 ? `<text x="${h * w + w / 2}" y="${H - 4}" font-size="10" text-anchor="middle" fill="#5d6b7a">${h}h</text>` : "");
+  }).join("") + `<text x="2" y="12" font-size="10" fill="#5d6b7a">peak ${pct(mx)} late</text></svg>`;
+}
+function carriers() {
+  $("car").innerHTML = CA.map(c => {
+    const o = orders.filter(x => x.c === c), n = o.filter(x => x.z === 2);
+    const on = o.filter(x => !x.late).length / o.length, nn = n.filter(x => !x.late).length / n.length;
+    return `<tr><td>${c.n}</td><td>${Math.round(o.length / N * 100)}%</td><td class="${on < .8 ? "down" : ""}">${pct(on)}</td><td>${(o.reduce((t, x) => t + x.hand, 0) / o.length).toFixed(1)} h</td>
+    <td>${(o.reduce((t, x) => t + x.tran, 0) / o.length).toFixed(0)} h</td><td class="${nn < .7 ? "down" : ""}">${pct(nn)}</td></tr>`;
+  }).join("");
+}
+$("chips").onclick = e => { const k = e.target.dataset.k; if (k) { wsel = k; chips(); causes(); } };
+summary(); chips(); causes(); fixes(); proj(); whTable(); hours(); carriers();
+</script>
+</body>
+</html>
